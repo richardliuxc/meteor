@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-accent="orange" data-motion="full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B0F19" />
+  <meta name="description" content="Meteor 流星下载：单文件、零后端的 Android 下载器与离线工具台。粘贴链接，拿到文件。" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Meteor · 流星下载</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230B0F19'/%3E%3Cpath d='M24 6 12 18' stroke='%23FF9A4D' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M12 8l1.6 4.4L18 14l-4.4 1.6L12 20l-1.6-4.4L6 14l4.4-1.6z' fill='%23FF9A4D'/%3E%3C/svg%3E" />
+  <style>
+/*__OG_STYLES__*/
+  </style>
+</head>
+<body>
+  <div id="og-boot" aria-hidden="true">
+    <div class="og-boot__mark"><svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs><linearGradient id="ogMarkBoot" x1="8" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD2A6"/><stop offset=".5" stop-color="#FF9A4D"/><stop offset="1" stop-color="#FF7D38"/></linearGradient></defs>
+            <path d="M27.4 4.8 15.8 16.4" stroke="url(#ogMarkBoot)" stroke-width="3.6" stroke-linecap="round" opacity=".5"/>
+            <path d="M24.8 11.2 16.8 19.2" stroke="url(#ogMarkBoot)" stroke-width="2.4" stroke-linecap="round" opacity=".35"/>
+            <path d="M13.6 8.8l1.6 4.4 4.4 1.6-4.4 1.6-1.6 4.4-1.6-4.4L7.6 14.8l4.4-1.6z" fill="url(#ogMarkBoot)"/>
+            <circle cx="24.8" cy="5.2" r="1.7" fill="#FFD8B5"/>
+            <circle cx="28.6" cy="9.4" r="1" fill="#FFD8B5" opacity=".75"/>
+          </svg></div>
+    <div class="og-boot__name">Meteor · 流星下载</div>
+    <div class="og-boot__bar"></div>
+  </div>
+
+  <div class="og-shell" id="og-app">
+    <aside class="og-sidebar" id="og-sidebar" aria-label="主导航">
+      <a class="og-brand" href="#/home" data-route="home" aria-label="Meteor 流星下载">
+        <span class="og-brand__mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs><linearGradient id="ogMarkBrand" x1="8" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD2A6"/><stop offset=".5" stop-color="#FF9A4D"/><stop offset="1" stop-color="#FF7D38"/></linearGradient></defs>
+            <path d="M27.4 4.8 15.8 16.4" stroke="url(#ogMarkBrand)" stroke-width="3.6" stroke-linecap="round" opacity=".5"/>
+            <path d="M24.8 11.2 16.8 19.2" stroke="url(#ogMarkBrand)" stroke-width="2.4" stroke-linecap="round" opacity=".35"/>
+            <path d="M13.6 8.8l1.6 4.4 4.4 1.6-4.4 1.6-1.6 4.4-1.6-4.4L7.6 14.8l4.4-1.6z" fill="url(#ogMarkBrand)"/>
+            <circle cx="24.8" cy="5.2" r="1.7" fill="#FFD8B5"/>
+            <circle cx="28.6" cy="9.4" r="1" fill="#FFD8B5" opacity=".75"/>
+          </svg></span>
+        <span class="og-brand__text">
+          <span class="og-brand__name">Meteor <span style="color:var(--og-primary)">流星</span></span>
+          <span class="og-brand__sub" data-i18n="app.tagline">单文件 · 零后端 · 本地优先</span>
+        </span>
+      </a>
+
+      <nav class="og-nav" aria-label="主菜单">
+        <div class="og-nav__group" data-i18n="nav.section.main">主菜单</div>
+        <button type="button" class="og-nav__item" data-route="home">
+          <span data-icon="home"></span><span data-i18n="nav.home">首页</span>
+        </button>
+        <button type="button" class="og-nav__item" data-route="downloads">
+          <span data-icon="download"></span><span data-i18n="nav.downloads">下载</span>
+          <span class="og-nav__badge is-hidden" id="og-download-badge"></span>
+        </button>
+        <button type="button" class="og-nav__item" data-route="library">
+          <span data-icon="library"></span><span data-i18n="nav.library">资料库</span>
+          <span class="og-nav__kbd" id="og-lib-count">0</span>
+        </button>
+        <button type="button" class="og-nav__item" data-route="tools">
+          <span data-icon="tools"></span><span data-i18n="nav.tools">工具</span>
+        </button>
+
+        <div class="og-nav__group" data-i18n="nav.section.app">应用</div>
+        <button type="button" class="og-nav__item" data-route="settings">
+          <span data-icon="settings"></span><span data-i18n="nav.settings">设置</span>
+        </button>
+        <button type="button" class="og-nav__item" data-route="about">
+          <span data-icon="info"></span><span data-i18n="nav.about">关于</span>
+        </button>
+      </nav>
+
+      <div class="og-storage-card">
+        <div class="og-storage-card__head">
+          <span data-i18n="sidebar.storage.title">本地存储</span>
+          <span class="og-storage-card__badge" data-i18n="sidebar.storage.badge">零上传</span>
+        </div>
+        <div class="og-storage-bar"><div class="og-storage-bar__fill" id="og-storage-bar"></div></div>
+        <div class="og-storage-card__text" id="og-storage-text">还没有保存记录</div>
+      </div>
+
+      <div class="og-sidebar__foot">
+        <span id="og-version-text">v1.0.0</span>
+        <a href="#/about" data-route="about">Meteor</a>
+      </div>
+    </aside>
+
+    <div class="og-nav-scrim" id="og-nav-scrim" aria-hidden="true"></div>
+
+    <div class="og-main">
+      <header class="og-topbar">
+        <button type="button" class="og-icon-btn og-menu-btn" id="og-menu-btn" aria-label="菜单">
+          <span data-icon="list"></span>
+        </button>
+        <div class="og-topbar__titles">
+          <h1 class="og-topbar__title" id="og-page-title">首页</h1>
+          <p class="og-topbar__sub" id="og-page-sub">粘贴链接，拿到文件</p>
+        </div>
+        <div class="og-topbar__actions">
+          <button type="button" class="og-engine-chip" id="og-engine-chip" aria-label="本地引擎">
+            <span class="og-engine-chip__dot"></span>
+            <span class="og-engine-chip__text">引擎</span>
+          </button>
+          <button type="button" class="og-search-trigger" id="og-search-btn" aria-label="命令面板">
+            <span data-icon="search"></span>
+            <span data-i18n="topbar.search">搜索</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+          <button type="button" class="og-icon-btn" id="og-theme-btn" aria-label="主题">
+            <span data-icon="moon"></span>
+          </button>
+          <button type="button" class="og-lang-btn" id="og-lang-btn" aria-label="切换语言">EN</button>
+        </div>
+      </header>
+
+      <main class="og-view" id="og-view" tabindex="-1"></main>
+    </div>
+
+    <nav class="og-bottomnav" aria-label="底部导航">
+      <div class="og-bottomnav__inner">
+        <button type="button" class="og-bottomnav__item" data-route="home">
+          <span data-icon="home"></span><span data-i18n="nav.home">首页</span>
+        </button>
+        <button type="button" class="og-bottomnav__item" data-route="downloads">
+          <span data-icon="download"></span><span data-i18n="nav.downloads">下载</span>
+        </button>
+        <button type="button" class="og-bottomnav__item" data-route="library">
+          <span data-icon="library"></span><span data-i18n="nav.library">资料库</span>
+        </button>
+        <button type="button" class="og-bottomnav__item" data-route="tools">
+          <span data-icon="tools"></span><span data-i18n="nav.tools">工具</span>
+        </button>
+        <button type="button" class="og-bottomnav__item" data-route="settings">
+          <span data-icon="settings"></span><span data-i18n="nav.settings">设置</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <div id="og-modal-root"></div>
+  <div id="og-toasts" class="og-toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <noscript>
+    <p style="padding:40px;text-align:center;color:#94a3b8">Meteor 需要启用 JavaScript 才能运行。</p>
+  </noscript>
+
+  <script>
+/*__OG_SCRIPTS__*/
+  </script>
+</body>
+</html>

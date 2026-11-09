@@ -1,0 +1,29 @@
+# build outputs
+dist/
+android/build/
+*.class
+*.dex
+*.apk
+*.idsig
+
+# local engine runtime
+server/bin/
+server/downloads/
+server/jobs.json
+server/engine.log
+server/engine.out
+server/engine.pid
+server/__pycache__/
+
+# signing / secrets
+android/*.jks
+*.keystore
+
+# test / deps
+.qa/
+.qa/node_modules/
+node_modules/
+
+# os
+.DS_Store
+Thumbs.db

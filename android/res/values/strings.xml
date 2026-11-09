@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Meteor</string>
+    <color name="splash_bg">#0B0F19</color>
+    <color name="brand_orange">#FF7D38</color>
+    <color name="brand_orange_deep">#F28500</color>
+    <color name="ic_launcher_background">#0B0F19</color>
+</resources>
