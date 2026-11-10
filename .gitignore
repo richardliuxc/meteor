@@ -27,3 +27,6 @@ node_modules/
 # os
 .DS_Store
 Thumbs.db
+
+# 落地页提供 APK 下载（唯一入库的二进制）
+!assets/Meteor.apk
