@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0F19">
+<title>Meteor · 流星下载 — 一个 APK，把链接变成文件</title>
+<meta name="description" content="Meteor 流星下载：原生 Android 界面、零云端后台。直连文件走系统下载，YouTube / B站等 1800+ 站点交给手机本地的 yt-dlp 引擎，下载完用系统播放器直接看。">
+<style>
+:root{
+  --bg:#0b0f19; --bg2:#0e1422; --surface:#131b2e; --surface2:#1a2337;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --text:#f8fafc; --muted:#94a3b8; --faint:#64748b;
+  --orange:#ff7d38; --orange2:#ffa35c; --deep:#f28500;
+  --green:#10b981; --sky:#38bdf8; --violet:#8b5cf6;
+  --radius:20px; --radius-sm:12px;
+  --shadow:0 30px 80px rgba(2,6,15,.55);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--text); font-family:var(--font); line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-2; pointer-events:none;
+  background:
+    radial-gradient(900px 560px at 12% -8%, rgba(255,125,56,.14), transparent 62%),
+    radial-gradient(760px 520px at 92% 4%, rgba(56,189,248,.09), transparent 60%),
+    radial-gradient(900px 640px at 55% 108%, rgba(139,92,246,.08), transparent 64%);
+}
+body::after{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.4;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(72% 58% at 50% 0%,#000 20%,transparent 100%);
+  -webkit-mask-image:radial-gradient(72% 58% at 50% 0%,#000 20%,transparent 100%);
+}
+a{color:inherit;text-decoration:none}
+.wrap{width:min(1120px,92vw);margin:0 auto}
+.kicker{
+  display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border:1px solid var(--border);
+  border-radius:999px;background:linear-gradient(100deg,rgba(255,125,56,.1),rgba(255,255,255,.03));
+  font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--muted)
+}
+.kicker i{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+/* nav */
+.nav{
+  position:sticky;top:0;z-index:50;backdrop-filter:blur(18px) saturate(1.15);
+  background:rgba(11,15,25,.68);border-bottom:1px solid var(--border)
+}
+.nav-in{display:flex;align-items:center;gap:28px;height:68px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;letter-spacing:-.02em;font-size:18px}
+.brand img{width:38px;height:38px;border-radius:11px}
+.brand small{display:block;font-size:10px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.nav nav{display:flex;gap:26px;margin-left:auto;font-size:14px;color:var(--muted)}
+.nav nav a:hover{color:var(--text)}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 20px;
+  border-radius:11px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);
+  font-size:14px;font-weight:600;transition:.2s;cursor:pointer;white-space:nowrap
+}
+.btn:hover{background:rgba(255,255,255,.08);border-color:var(--border2);transform:translateY(-1px)}
+.btn-primary{
+  background:linear-gradient(180deg,var(--orange2),var(--orange));border:0;color:#1a0d05;
+  box-shadow:0 10px 26px rgba(255,125,56,.35),inset 0 1px 0 rgba(255,255,255,.35)
+}
+.btn-primary:hover{filter:brightness(1.05)}
+.btn-sm{height:38px;padding:0 16px;font-size:13px}
+/* hero */
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:86px 0 70px}
+.hero h1{font-size:clamp(38px,5.2vw,62px);line-height:1.1;letter-spacing:-.035em;margin:22px 0 18px;font-weight:800}
+.hero h1 .g{background:linear-gradient(96deg,var(--orange),var(--orange2) 55%,#ffe0bf);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:17px;color:var(--muted);max-width:520px;line-height:1.75}
+.hero .cta{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+.hero .meta{display:flex;gap:10px;margin-top:18px;font-size:12px;color:var(--faint);flex-wrap:wrap}
+.hero .meta span{display:flex;align-items:center;gap:6px}
+.hero .meta svg{width:14px;height:14px;color:var(--green)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:38px;max-width:560px}
+.stat{border:1px solid var(--border);border-radius:14px;padding:12px 14px;background:rgba(255,255,255,.025)}
+.stat b{display:block;font-size:22px;letter-spacing:-.02em}
+.stat span{font-size:11px;color:var(--faint)}
+/* phone */
+.phone-stage{position:relative;display:flex;justify-content:center;align-items:center;min-height:620px}
+.phone-stage::before{
+  content:"";position:absolute;width:420px;height:420px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,125,56,.32),transparent 65%);filter:blur(20px)
+}
+.phone{
+  position:relative;width:288px;border-radius:38px;padding:10px;
+  background:linear-gradient(160deg,#273449,#0d1322 55%);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.18);
+  transform:rotate(-2deg);
+}
+.phone img{width:100%;display:block;border-radius:29px;background:#0b0f19}
+.phone::after{
+  content:"";position:absolute;left:50%;top:16px;transform:translateX(-50%);
+  width:74px;height:5px;border-radius:999px;background:rgba(0,0,0,.55)
+}
+.float{
+  position:absolute;display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:12px;
+  background:rgba(19,27,46,.92);border:1px solid var(--border2);font-size:12px;font-weight:600;
+  box-shadow:0 14px 34px rgba(0,0,0,.45);backdrop-filter:blur(10px)
+}
+.float i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+.float.a{top:88px;left:-14px}
+.float.b{bottom:120px;right:-18px}
+.float.b i{background:var(--orange)}
+/* sections */
+section{padding:78px 0}
+.sec-head{max-width:680px;margin-bottom:44px}
+.sec-head .kicker{margin-bottom:14px}
+.sec-head h2{font-size:clamp(28px,3.4vw,40px);letter-spacing:-.03em;line-height:1.18;font-weight:800}
+.sec-head p{color:var(--muted);font-size:15px;margin-top:12px}
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{
+  border:1px solid var(--border);border-radius:var(--radius);padding:24px;
+  background:linear-gradient(170deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:.25s
+}
+.card:hover{transform:translateY(-3px);border-color:var(--border2);background:linear-gradient(170deg,rgba(255,255,255,.065),rgba(255,255,255,.018))}
+.card .ic{
+  width:42px;height:42px;border-radius:12px;display:grid;place-items:center;margin-bottom:14px;
+  background:rgba(255,125,56,.12);border:1px solid rgba(255,125,56,.22);color:var(--orange2)
+}
+.card .ic svg{width:21px;height:21px}
+.card h3{font-size:16px;margin-bottom:7px;letter-spacing:-.01em}
+.card p{font-size:13px;color:var(--muted);line-height:1.7}
+/* screens */
+.screens{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start}
+.shot{text-align:center}
+.shot .frame{
+  border-radius:26px;padding:8px;border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(160deg,#222d45,#0d1322);
+  box-shadow:0 24px 60px rgba(0,0,0,.5);transition:.3s
+}
+.shot .frame:hover{transform:translateY(-6px);border-color:rgba(255,125,56,.4)}
+.shot img{width:100%;display:block;border-radius:20px}
+.shot p{margin-top:14px;font-size:13px;color:var(--muted)}
+.shot p b{color:var(--text);display:block;font-size:14px;margin-bottom:2px}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.step{position:relative;border:1px solid var(--border);border-radius:var(--radius);padding:24px;background:rgba(255,255,255,.025)}
+.step .n{
+  width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:13px;
+  background:rgba(255,125,56,.14);color:var(--orange2);border:1px solid rgba(255,125,56,.25);margin-bottom:14px
+}
+.step h3{font-size:15px;margin-bottom:6px}
+.step p{font-size:13px;color:var(--muted)}
+.diagram{
+  margin-top:18px;border:1px solid var(--border);border-radius:var(--radius);padding:26px;
+  background:linear-gradient(170deg,rgba(255,255,255,.04),rgba(255,255,255,.012));
+  display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:14px;align-items:center;text-align:center
+}
+.diagram .node{border:1px solid var(--border);border-radius:14px;padding:16px 12px;background:rgba(0,0,0,.16)}
+.diagram .node b{display:block;font-size:14px;margin-bottom:4px}
+.diagram .node span{font-size:11px;color:var(--faint)}
+.diagram .arr{color:var(--faint);font-size:18px}
+/* download */
+.download{
+  border:1px solid rgba(255,125,56,.25);border-radius:26px;padding:46px;text-align:center;
+  background:
+    radial-gradient(120% 140% at 50% 0%,rgba(255,125,56,.16),transparent 60%),
+    linear-gradient(170deg,rgba(255,255,255,.05),rgba(255,255,255,.012));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)
+}
+.download h2{font-size:clamp(26px,3.2vw,38px);letter-spacing:-.03em;margin-bottom:12px}
+.download p{color:var(--muted);font-size:14px;margin-bottom:26px}
+.download .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.download .fine{margin-top:18px;font-size:12px;color:var(--faint)}
+/* faq */
+.faq{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+details{border:1px solid var(--border);border-radius:16px;padding:18px 20px;background:rgba(255,255,255,.025)}
+details[open]{border-color:var(--border2)}
+summary{cursor:pointer;font-size:14px;font-weight:600;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";float:right;color:var(--faint)}
+details[open] summary::after{content:"−"}
+details p{margin-top:10px;font-size:13px;color:var(--muted);line-height:1.75}
+/* footer */
+footer{border-top:1px solid var(--border);padding:36px 0 46px;color:var(--faint);font-size:12px}
+.foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}
+.foot a{color:var(--muted)}
+.foot a:hover{color:var(--text)}
+@media (max-width:960px){
+  .hero{grid-template-columns:1fr;gap:30px;padding-top:56px}
+  .phone-stage{min-height:560px}
+  .features{grid-template-columns:1fr 1fr}
+  .screens{grid-template-columns:1fr 1fr}
+  .screens .shot:last-child{display:none}
+  .steps{grid-template-columns:1fr}
+  .diagram{grid-template-columns:1fr;gap:10px}
+  .diagram .arr{transform:rotate(90deg)}
+  .faq{grid-template-columns:1fr}
+  .nav nav{display:none}
+  .stats{grid-template-columns:1fr 1fr}
+}
+@media (max-width:600px){
+  .features,.screens{grid-template-columns:1fr}
+  .screens .shot:last-child{display:block}
+  .download{padding:30px 20px}
+  .phone{width:250px}
+  .float{display:none}
+  .hero h1{font-size:clamp(32px,8vw,44px)}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <img src="assets/icon.png" alt="Meteor">
+      <span>Meteor<small>流星下载 · Android</small></span>
+    </a>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#screens">界面</a>
+      <a href="#how">工作原理</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <a class="btn btn-sm" href="https://github.com/richardliuxc/meteor" target="_blank" rel="noopener">GitHub</a>
+    <a class="btn btn-primary btn-sm" href="assets/Meteor.apk" download>下载 APK</a>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <div>
+      <span class="kicker"><i></i>Android · 单文件 APK · 零云端后台</span>
+      <h1>粘贴链接，<br><span class="g">拿到文件。</span></h1>
+      <p>Meteor 把下载这件事做回本机：直链交给系统下载器；YouTube、B站等 1800+ 站点交给手机里的 yt-dlp 引擎。下载完点一下，用系统播放器直接看。</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="assets/Meteor.apk" download>下载 Android APK</a>
+        <a class="btn" href="https://github.com/richardliuxc/meteor" target="_blank" rel="noopener">查看源码</a>
+      </div>
+      <div class="meta">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4.5 12.5 5 5 10-11"/></svg>无需安装服务端</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4.5 12.5 5 5 10-11"/></svg>不上传、无账号</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4.5 12.5 5 5 10-11"/></svg>原生界面</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>1</b><span>个 APK 即装即用</span></div>
+        <div class="stat"><b>1800+</b><span>站点（yt-dlp）</span></div>
+        <div class="stat"><b>0</b><span>云端后台</span></div>
+        <div class="stat"><b>1080p</b><span>默认兼容画质</span></div>
+      </div>
+    </div>
+    <div class="phone-stage">
+      <div class="float a"><i></i>本地引擎在线</div>
+      <div class="float b"><i></i>系统播放器打开</div>
+      <div class="phone"><img src="assets/home.png" alt="Meteor 首页"></div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="kicker">功能</span>
+        <h2>下载器该有的，<br>一个都不少。</h2>
+        <p>不是套壳网页，也不是云服务。Meteor 是一个跑在你手机上的原生下载工作台。</p>
+      </div>
+      <div class="features">
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div>
+          <h3>直连下载</h3>
+          <p>mp4、mp3、图片、PDF、压缩包，粘贴即下。系统 DownloadManager 负责落盘，大文件不进内存。</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></div>
+          <h3>本地 yt-dlp 引擎</h3>
+          <p>在手机本地跑 yt-dlp + FFmpeg，解析 YouTube、B站等平台，自动合并音视频，全程 127.0.0.1。</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5.3 19 12 8 18.7z"/></svg></div>
+          <h3>系统播放器打开</h3>
+          <p>下载完成点「打开」，直接调系统播放器播放实际文件；4K 等不兼容视频自动转 720p 再播。</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18"/></svg></div>
+          <h3>多选管理记录</h3>
+          <p>下载记录支持长按多选、批量删除，也可清理已完成。重启 App 记录还在。</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div>
+          <h3>保存到系统下载</h3>
+          <p>引擎下载落在「下载/Meteor」，文件管理直接可见；「打开」时再交给系统播放器。</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2 20 6.1v5.3c0 4.8-3.4 8.2-8 9.9-4.6-1.7-8-5.1-8-9.9V6.1z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></svg></div>
+          <h3>零后端 · 隐私优先</h3>
+          <p>没有账号、没有云端、没有埋点。设置与下载记录只保存在本机，引擎只监听 127.0.0.1。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="kicker">界面</span>
+        <h2>原生 Android 界面，<br>点击即响应。</h2>
+        <p>没有 WebView、没有网页壳。输入框、按钮、列表全部是系统原生控件。</p>
+      </div>
+      <div class="screens">
+        <div class="shot">
+          <div class="frame"><img src="assets/home.png" alt="首页"></div>
+          <p><b>首页</b>粘贴链接 · 平台识别 · 画质选择</p>
+        </div>
+        <div class="shot">
+          <div class="frame"><img src="assets/downloads.png" alt="下载列表"></div>
+          <p><b>下载</b>进度 · 速度 · 来源与时间 · 多选</p>
+        </div>
+        <div class="shot">
+          <div class="frame"><img src="assets/settings.png" alt="设置"></div>
+          <p><b>设置</b>引擎地址 · 下载目录 · 关于</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="kicker">工作原理</span>
+        <h2>两种下载，<br>都在你手机上完成。</h2>
+        <p>直连文件走 Android 系统能力；平台视频交给本机 yt-dlp。没有中间服务器，也不需要上传任何数据。</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="n">01</div>
+          <h3>粘贴链接</h3>
+          <p>在首页粘贴任意链接，Meteor 自动识别平台与文件类型。</p>
+        </div>
+        <div class="step">
+          <div class="n">02</div>
+          <h3>选择方式</h3>
+          <p>直链交给系统下载器；YouTube 等交给本地引擎，可选 1080p / 720p / 仅音频。</p>
+        </div>
+        <div class="step">
+          <div class="n">03</div>
+          <h3>点击打开</h3>
+          <p>下载完成保存到「下载/Meteor」，点「打开」用系统播放器直接看。</p>
+        </div>
+      </div>
+      <div class="diagram">
+        <div class="node"><b>Meteor App</b><span>原生界面 · 下载管理</span></div>
+        <div class="arr">→</div>
+        <div class="node"><b>本机 127.0.0.1</b><span>yt-dlp + FFmpeg</span></div>
+        <div class="arr">→</div>
+        <div class="node"><b>系统下载目录</b><span>下载/Meteor</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <div class="download">
+        <span class="kicker" style="margin-bottom:16px"><i></i>v1.7.0 · 约 323 KB</span>
+        <h2>一个 APK，开始下载。</h2>
+        <p>覆盖安装即可。安装后如需平台视频下载，在 DSH Go 本地环境启动一次引擎。</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="assets/Meteor.apk" download>下载 Meteor APK</a>
+          <a class="btn" href="https://github.com/richardliuxc/meteor" target="_blank" rel="noopener">GitHub 源码</a>
+        </div>
+        <div class="fine">Android 8.0+ · 自签名 debug 包 · 请允许「安装未知应用」</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="kicker">常见问题</span>
+        <h2>几个你可能会问的问题。</h2>
+      </div>
+      <div class="faq">
+        <details open>
+          <summary>需要安装服务器或后端吗？</summary>
+          <p>不需要云端服务。平台视频功能需要一个跑在本机的 yt-dlp 引擎（项目里的 server/），它只监听 127.0.0.1，不经过任何服务器。</p>
+        </details>
+        <details>
+          <summary>为什么平台下载需要本地引擎？</summary>
+          <p>浏览器/沙盒无法运行 yt-dlp 与 FFmpeg。把引擎跑在手机本地，Meteor 通过本机 HTTP 调用它，仍然没有云端。</p>
+        </details>
+        <details>
+          <summary>下载的文件在哪里？</summary>
+          <p>直连文件在系统「下载」目录；引擎下载在「下载/Meteor」。点「打开」会用系统播放器打开实际文件。</p>
+        </details>
+        <details>
+          <summary>支持 4K 吗？</summary>
+          <p>默认限制 1080p 以内并优先 H.264/AAC，保证手机能播；遇到高分辨率视频会自动转 720p 兼容格式。</p>
+        </details>
+        <details>
+          <summary>会上传我的数据吗？</summary>
+          <p>不会。没有账号、没有埋点，设置与记录只保存在本机。</p>
+        </details>
+        <details>
+          <summary>可以自己改引擎地址吗？</summary>
+          <p>可以。设置页可填写任意 http(s) 引擎地址，保存后立即检测连接。</p>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>© 2026 Meteor · 流星下载 · GPL-3.0</div>
+    <div>基于 <a href="https://github.com/OpenSelena/omniget" target="_blank" rel="noopener">OpenSelena/omniget</a> 的界面与理念重制 · 仅用于个人合法内容</div>
+  </div>
+</footer>
+</body>
+</html>

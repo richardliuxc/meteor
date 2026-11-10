@@ -3,7 +3,7 @@
 > 基于 [OpenSelena/omniget](https://github.com/OpenSelena/omniget) 的界面与产品理念重制的 Android App。
 > **一个 APK、纯原生界面、零云端后端**：直连下载 + 本地 yt-dlp 引擎（手机本机 127.0.0.1）。
 
-![Meteor](</root/workspace/omniget-studio/docs/brand-banner.png>)
+![Meteor](docs/brand-banner.png)
 
 ---
 
@@ -19,6 +19,12 @@
 如果你手机里还留着旧的 **OmniGet Studio**，请卸载它，避免打开错 App。
 
 ---
+
+### v1.7.0 更新
+- 下载记录支持**管理 / 多选 / 批量删除**（长按任务或点「管理」进入）；
+- 设置页引擎地址可编辑，新增「保存地址 / 恢复默认」，保存后立即检测；
+- 新增**商业落地页** `index.html`（含界面截图、功能、原理、下载入口）；
+- README 截图路径修复，补充首页/下载/设置截图。
 
 ### v1.6.0 更新（按你的要求：系统播放器 + 系统下载目录）
 - 本地引擎下载目录改为 **`下载/Meteor`**（系统 Download 下，文件管理可直接看到）；
@@ -47,6 +53,20 @@
 - 新增 **分享按钮**（任务卡片 + 播放器内）；
 - 引擎任务历史持久化 + 自动导入下载目录里已有的文件；
 - 本地引擎启动脚本增加健康检查重试。
+
+## 界面
+
+<table>
+  <tr>
+    <td><img src="docs/screens/home.png" width="240" alt="首页"></td>
+    <td><img src="docs/screens/downloads.png" width="240" alt="下载"></td>
+    <td><img src="docs/screens/settings.png" width="240" alt="设置"></td>
+  </tr>
+</table>
+
+## 落地页
+
+> `index.html` —— 可直接打开，或启用 GitHub Pages 后访问仓库首页。
 
 ## 二、交付物
 
@@ -89,7 +109,7 @@ App 顶栏会显示「● 引擎在线」；首页粘贴 YouTube 链接 → 显�
 ### 3）其他
 - **分享链接**：其他 App 分享链接给 Meteor，自动填入并解析；
 - **三个页签**：首页 / 下载 / 设置；
-- **设置**：引擎地址与检测、下载目录、版本信息；
+- **设置**：引擎地址可编辑（保存/恢复默认/检测）、下载目录、版本信息；
 - 下载记录会持久化（重启 App 仍在）；已下载文件在系统下载目录。
 
 ---

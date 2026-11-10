@@ -30,6 +30,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -116,6 +117,12 @@ public class MainActivity extends Activity {
 
     private final List<Item> items = new ArrayList<>();
     private final Map<String, View> itemViews = new HashMap<>();
+    private boolean selectionMode = false;
+    private final java.util.Set<String> selected = new java.util.HashSet<>();
+    private TextView manageBtn;
+    private LinearLayout selectionBar;
+    private TextView deleteSelectedBtn;
+    private TextView selectAllBtn;
     private final Map<String, String> thumbCache = new HashMap<>();
 
     private static final Pattern URL_RE = Pattern.compile("https?://[^\\s]+");
@@ -393,11 +400,39 @@ public class MainActivity extends Activity {
         box.setPadding(dp(18), dp(14), dp(18), dp(30));
         page.addView(box);
 
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text("下载", 22, C_TEXT, true);
-        box.addView(title);
-        TextView sub = text("系统下载管理器 + 本地引擎任务", 11, C_MUTED, false);
+        titleRow.addView(title);
+        View titleSpacer = new View(this);
+        titleSpacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
+        titleRow.addView(titleSpacer);
+        manageBtn = text("管理", 13, C_ACCENT2, true);
+        manageBtn.setPadding(dp(10), dp(6), dp(4), dp(6));
+        manageBtn.setOnClickListener(v -> toggleSelectionMode());
+        titleRow.addView(manageBtn);
+        box.addView(titleRow);
+
+        TextView sub = text("长按任务或多选后删除记录", 11, C_MUTED, false);
         sub.setPadding(0, dp(4), 0, dp(12));
         box.addView(sub);
+
+        selectionBar = new LinearLayout(this);
+        selectionBar.setOrientation(LinearLayout.HORIZONTAL);
+        selectionBar.setPadding(0, dp(2), 0, dp(8));
+        selectionBar.setVisibility(View.GONE);
+        selectAllBtn = smallButton("全选");
+        selectAllBtn.setOnClickListener(v -> {
+            for (Item it : items) selected.add(it.id);
+            refreshSelectionUi();
+            refreshDownloads(true);
+        });
+        selectionBar.addView(selectAllBtn, btnLp());
+        deleteSelectedBtn = smallButton("删除选中 (0)");
+        deleteSelectedBtn.setOnClickListener(v -> deleteSelectedItems());
+        selectionBar.addView(deleteSelectedBtn, btnLp());
+        box.addView(selectionBar);
 
         downloadList = new LinearLayout(this);
         downloadList.setOrientation(LinearLayout.VERTICAL);
@@ -445,6 +480,34 @@ public class MainActivity extends Activity {
         uLp.topMargin = dp(10);
         engineUrlInput.setLayoutParams(uLp);
         engineCard.addView(engineUrlInput);
+
+        LinearLayout saveRow = new LinearLayout(this);
+        saveRow.setOrientation(LinearLayout.HORIZONTAL);
+        saveRow.setPadding(0, dp(8), 0, 0);
+        TextView saveAddr = smallButton("保存地址");
+        saveAddr.setOnClickListener(v -> {
+            String url = engineUrlInput.getText().toString().trim();
+            if (!url.startsWith("http")) {
+                toast("地址需以 http:// 或 https:// 开头");
+                return;
+            }
+            engineBase = url;
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("engine", engineBase).apply();
+            toast("引擎地址已保存");
+            engineOnline = false;
+            checkEngine();
+        });
+        saveRow.addView(saveAddr, btnLp());
+        TextView resetAddr = smallButton("恢复默认");
+        resetAddr.setOnClickListener(v -> {
+            engineBase = DEFAULT_ENGINE;
+            engineUrlInput.setText(engineBase);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("engine", engineBase).apply();
+            engineOnline = false;
+            checkEngine();
+        });
+        saveRow.addView(resetAddr, btnLp());
+        engineCard.addView(saveRow);
 
         LinearLayout eBtns = new LinearLayout(this);
         eBtns.setOrientation(LinearLayout.HORIZONTAL);
@@ -503,7 +566,7 @@ public class MainActivity extends Activity {
         aLp.topMargin = dp(12);
         aboutCard.setLayoutParams(aLp);
         aboutCard.addView(text("关于", 14, C_TEXT, true));
-        TextView about = text("Meteor 1.6.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
+        TextView about = text("Meteor 1.7.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
         about.setPadding(0, dp(6), 0, 0);
         about.setLineSpacing(0, 1.35f);
         aboutCard.addView(about);
@@ -1072,6 +1135,54 @@ public class MainActivity extends Activity {
         if (changed) saveItems();
     }
 
+    private void toggleSelectionMode() {
+        selectionMode = !selectionMode;
+        selected.clear();
+        if (manageBtn != null) manageBtn.setText(selectionMode ? "完成" : "管理");
+        if (selectionBar != null) selectionBar.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+        refreshSelectionUi();
+        refreshDownloads(true);
+    }
+
+    private void refreshSelectionUi() {
+        if (deleteSelectedBtn != null) {
+            deleteSelectedBtn.setText("删除选中 (" + selected.size() + ")");
+            deleteSelectedBtn.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+        }
+        if (selectAllBtn != null) {
+            selectAllBtn.setText(selected.size() >= items.size() && !items.isEmpty() ? "取消全选" : "全选");
+        }
+    }
+
+    private void deleteSelectedItems() {
+        if (selected.isEmpty()) {
+            toast("先选择要删除的记录");
+            return;
+        }
+        final int count = selected.size();
+        for (String id : new java.util.ArrayList<>(selected)) {
+            Item item = findItem(id);
+            if (item == null) continue;
+            if (item.engine) {
+                if (("active".equals(item.status) || "queued".equals(item.status)) && engineOnline) {
+                    engineGet("/cancel?id=" + Uri.encode(jobIdOf(item)), (ok, d, e) -> {
+                    });
+                }
+            } else if (item.nativeId != 0
+                    && ("active".equals(item.status) || "queued".equals(item.status))) {
+                try {
+                    ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).remove(item.nativeId);
+                } catch (Exception ignored) {
+                }
+            }
+            items.remove(item);
+        }
+        selected.clear();
+        saveItems();
+        toggleSelectionMode();
+        toast("已删除 " + count + " 条记录");
+    }
+
     private void refreshDownloads(boolean force) {
         if (downloadList == null) return;
         TextView empty = (TextView) downloadList.getTag();
@@ -1113,6 +1224,13 @@ public class MainActivity extends Activity {
         LinearLayout topRow = new LinearLayout(this);
         topRow.setOrientation(LinearLayout.HORIZONTAL);
         topRow.setGravity(Gravity.CENTER_VERTICAL);
+        CheckBox cb = new CheckBox(this);
+        cb.setClickable(false);
+        cb.setFocusable(false);
+        cb.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+        LinearLayout.LayoutParams cbLp = new LinearLayout.LayoutParams(dp(30), dp(30));
+        cb.setLayoutParams(cbLp);
+        topRow.addView(cb);
         TextView title = text("", 13, C_TEXT, true);
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -1163,14 +1281,31 @@ public class MainActivity extends Activity {
         actions.addView(share, btnLp());
 
         card.addView(actions);
+        card.setOnClickListener(v -> {
+            if (selectionMode) {
+                if (selected.contains(item.id)) selected.remove(item.id); else selected.add(item.id);
+                refreshSelectionUi();
+                updateDownloadCard(card, item);
+            }
+        });
+        card.setOnLongClickListener(v -> {
+            if (!selectionMode) toggleSelectionMode();
+            selected.add(item.id);
+            refreshSelectionUi();
+            updateDownloadCard(card, item);
+            return true;
+        });
         return card;
     }
 
     private void updateDownloadCard(View card, Item item) {
         LinearLayout root = (LinearLayout) card;
         LinearLayout topRow = (LinearLayout) root.getChildAt(0);
-        TextView title = (TextView) topRow.getChildAt(0);
-        TextView badge = (TextView) topRow.getChildAt(1);
+        CheckBox cb = (CheckBox) topRow.getChildAt(0);
+        TextView title = (TextView) topRow.getChildAt(1);
+        TextView badge = (TextView) topRow.getChildAt(2);
+        cb.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+        cb.setChecked(selected.contains(item.id));
         TextView meta = (TextView) root.getChildAt(1);
         ProgressBar bar = (ProgressBar) root.getChildAt(2);
         LinearLayout actions = (LinearLayout) root.getChildAt(3);
