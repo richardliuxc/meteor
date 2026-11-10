@@ -114,6 +114,8 @@ public class MainActivity extends Activity {
     private long lastDirectSize = 0;
     private JSONArray lastHeights = new JSONArray();
     private boolean analyzing = false;
+    private boolean engineFirstSync = true;
+    private boolean firstNativePoll = true;
 
     private final List<Item> items = new ArrayList<>();
     private final Map<String, View> itemViews = new HashMap<>();
@@ -566,7 +568,7 @@ public class MainActivity extends Activity {
         aLp.topMargin = dp(12);
         aboutCard.setLayoutParams(aLp);
         aboutCard.addView(text("关于", 14, C_TEXT, true));
-        TextView about = text("Meteor 1.7.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
+        TextView about = text("Meteor 1.7.1 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
         about.setPadding(0, dp(6), 0, 0);
         about.setLineSpacing(0, 1.35f);
         aboutCard.addView(about);
@@ -894,6 +896,7 @@ public class MainActivity extends Activity {
             if (jid.isEmpty()) continue;
             String id = "eng-" + jid;
             Item item = findItem(id);
+            boolean isNew = item == null;
             if (item == null) {
                 item = new Item();
                 item.id = id;
@@ -929,13 +932,22 @@ public class MainActivity extends Activity {
             if (!item.uploader.isEmpty() && !"本地文件".equals(item.uploader)) item.source = item.uploader;
             else if (!item.extractor.isEmpty() && !"已下载".equals(item.extractor)) item.source = item.extractor;
             else if (item.source.isEmpty()) item.source = "本地引擎";
-            if ("done".equals(item.status) && !"done".equals(oldStatus)) {
-                item.finishedAt = System.currentTimeMillis();
+            long jobFinished = j.optLong("finishedAt", 0);
+            if ("done".equals(item.status)) {
+                // 历史任务用服务端记录的真实完成时间，不要每次打开 App 都刷新成“现在”
+                if (isNew || jobFinished > 0) {
+                    item.finishedAt = jobFinished > 0 ? jobFinished : item.finishedAt;
+                }
+            }
+            if ("done".equals(item.status) && !"done".equals(oldStatus) && !isNew
+                    && !engineFirstSync) {
+                item.finishedAt = jobFinished > 0 ? jobFinished : System.currentTimeMillis();
                 toast("下载完成：" + (item.title.isEmpty() ? item.filename : item.title));
             }
             if (!item.title.isEmpty() && !thumbCache.containsKey(item.id)) loadThumbForItem(item);
             changed = true;
         }
+        engineFirstSync = false;
         if (changed) refreshDownloads(true);
     }
 
@@ -1114,7 +1126,7 @@ public class MainActivity extends Activity {
                     if (!"done".equals(item.status)) {
                         item.status = "done";
                         item.finishedAt = System.currentTimeMillis();
-                        toast("下载完成：" + item.title);
+                        if (!firstNativePoll) toast("下载完成：" + item.title);
                         changed = true;
                     }
                 } else if (st == DownloadManager.STATUS_FAILED) {
@@ -1132,6 +1144,7 @@ public class MainActivity extends Activity {
                 if (c != null) c.close();
             }
         }
+        firstNativePoll = false;
         if (changed) saveItems();
     }
 
