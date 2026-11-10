@@ -23,8 +23,8 @@ APKSIGNER_JAR="${APKSIGNER_JAR:-/opt/android-buildtools/android-14/lib/apksigner
 ANDROID_JAR="${ANDROID_JAR:-/opt/android-platform/android-34/android.jar}"
 
 APP_NAME="Meteor"
-VERSION_NAME="1.4.0"
-VERSION_CODE="5"
+VERSION_NAME="1.5.0"
+VERSION_CODE="6"
 
 echo "==> 检查工具链"
 for f in "$AAPT" "$ZIPALIGN" "$D8_JAR" "$APKSIGNER_JAR" "$ANDROID_JAR" "$JAVA_HOME/bin/javac"; do

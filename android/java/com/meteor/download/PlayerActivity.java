@@ -85,8 +85,8 @@ public class PlayerActivity extends Activity {
             showError("没有可播放的文件");
             return;
         }
-        play(uriString);
-        ui.postDelayed(this::watchdog, 8000);
+        prepareAndPlay(uriString);
+        ui.postDelayed(this::watchdog, 10000);
     }
 
     private void buildUi() {
@@ -181,6 +181,88 @@ public class PlayerActivity extends Activity {
         videoView.requestFocus();
     }
 
+    /** 引擎文件先下载到 App 自己的缓存目录，再本地播放：绕开 HTTP/MediaPlayer 与 scoped storage 问题。 */
+    private void prepareAndPlay(String uri) {
+        if (uri == null || !uri.startsWith("http")) {
+            play(uri);
+            return;
+        }
+        final java.io.File dir = getExternalFilesDir("media");
+        if (dir == null) {
+            play(uri);
+            return;
+        }
+        dir.mkdirs();
+        String key = Integer.toHexString(uri.hashCode());
+        final java.io.File target = new java.io.File(dir, key + ".mp4");
+        if (target.exists() && target.length() > 0) {
+            playLocalFile(target);
+            return;
+        }
+        statusText.setVisibility(View.VISIBLE);
+        statusText.setText("正在准备视频…");
+        pool.execute(() -> {
+            HttpURLConnection conn = null;
+            java.io.File tmp = new java.io.File(dir, key + ".part");
+            try {
+                conn = (HttpURLConnection) new URL(uri).openConnection();
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(30000);
+                conn.setRequestProperty("Accept", "*/*");
+                int code = conn.getResponseCode();
+                if (code >= 400) throw new Exception("HTTP " + code);
+                long total = conn.getContentLengthLong();
+                InputStream is = conn.getInputStream();
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp);
+                byte[] buf = new byte[65536];
+                int n;
+                long got = 0;
+                long lastUpdate = 0;
+                while ((n = is.read(buf)) > 0) {
+                    fos.write(buf, 0, n);
+                    got += n;
+                    long now = System.currentTimeMillis();
+                    if (now - lastUpdate > 350) {
+                        lastUpdate = now;
+                        final int pct = total > 0 ? (int) (got * 100 / total) : -1;
+                        final long fg = got;
+                        ui.post(() -> {
+                            if (!isFinishing())
+                                statusText.setText(pct >= 0
+                                        ? "正在准备视频… " + pct + "%"
+                                        : "正在准备视频… " + (fg / 1024 / 1024) + " MB");
+                        });
+                    }
+                }
+                is.close();
+                fos.close();
+                if (target.exists()) target.delete();
+                if (!tmp.renameTo(target)) throw new Exception("rename failed");
+                ui.post(() -> playLocalFile(target));
+            } catch (Exception e) {
+                try {
+                    if (tmp.exists()) tmp.delete();
+                } catch (Exception ignored) {
+                }
+                final String msg = String.valueOf(e.getMessage());
+                ui.post(() -> showError("准备视频失败: " + msg));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    private void playLocalFile(java.io.File file) {
+        try {
+            uriString = FileBridge.uriFor(file.getAbsolutePath()).toString();
+            mime = FileBridge.mimeOf(file.getAbsolutePath());
+            statusText.setText("正在加载视频…");
+            play(uriString);
+        } catch (Exception e) {
+            showError("播放失败: " + e.getMessage());
+        }
+    }
+
     private void play(String uri) {
         prepared = false;
         watchdogDone = false;
@@ -265,10 +347,9 @@ public class PlayerActivity extends Activity {
                 if ("done".equals(status)) {
                     String path = data.optString("path", "");
                     compatRunning = false;
-                    statusText.setText("转码完成，正在播放…");
-                    uriString = engineBase + "/play?p=" + enc(path);
+                    statusText.setText("转码完成，正在加载…");
                     mime = "video/mp4";
-                    play(uriString);
+                    prepareAndPlay(engineBase + "/play?p=" + enc(path));
                     return;
                 }
                 if ("error".equals(status)) {
@@ -285,7 +366,12 @@ public class PlayerActivity extends Activity {
     private void openSystemPlayer() {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(Uri.parse(uriString), mime);
+            Uri target = Uri.parse(uriString);
+            if (target.getScheme() != null && target.getScheme().startsWith("http")) {
+                Toast.makeText(this, "请先等待视频缓存完成再打开系统播放器", Toast.LENGTH_LONG).show();
+                return;
+            }
+            intent.setDataAndType(target, mime);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (Exception e) {

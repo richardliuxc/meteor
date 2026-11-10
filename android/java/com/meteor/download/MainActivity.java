@@ -495,7 +495,7 @@ public class MainActivity extends Activity {
         aLp.topMargin = dp(12);
         aboutCard.setLayoutParams(aLp);
         aboutCard.addView(text("关于", 14, C_TEXT, true));
-        TextView about = text("Meteor 1.4.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
+        TextView about = text("Meteor 1.5.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
         about.setPadding(0, dp(6), 0, 0);
         about.setLineSpacing(0, 1.35f);
         aboutCard.addView(about);
