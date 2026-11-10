@@ -9,7 +9,7 @@
 
 ## 一、这一版改了什么（重要）
 
-上一版用 WebView 承载界面，在华为/部分旧 WebView 上出现「输入框点不了、按钮没反应」。**v1.2.0 已彻底移除 WebView**，界面改为 Android 原生控件（Java + 系统 View）：
+上一版用 WebView 承载界面，在部分旧 WebView 上出现「输入框点不了、按钮没反应」。**v1.2.0 已彻底移除 WebView**，界面改为 Android 原生控件（Java + 系统 View）：
 
 - 输入框、按钮、下拉、列表全部是原生控件，点击/输入一定响应；
 - 启动时会做异常兜底：即使 UI 构建出错，也会显示「Meteor 启动异常 + 错误信息」，不会白屏；
@@ -58,15 +58,15 @@
 
 <table>
   <tr>
-    <td><img src="docs/screens/home.png" width="240" alt="首页"></td>
-    <td><img src="docs/screens/downloads.png" width="240" alt="下载"></td>
-    <td><img src="docs/screens/settings.png" width="240" alt="设置"></td>
+    <td><img src="assets/home.png" width="240" alt="首页"></td>
+    <td><img src="assets/downloads.png" width="240" alt="下载"></td>
+    <td><img src="assets/settings.png" width="240" alt="设置"></td>
   </tr>
 </table>
 
 ## 落地页
 
-> `index.html` —— 可直接打开，或启用 GitHub Pages 后访问仓库首页。
+> `index.html` —— 可直接打开；启用 GitHub Pages 后访问 `https://richardliuxc.github.io/meteor/`。
 
 ## 二、交付物
 
@@ -93,10 +93,10 @@
 引擎下载的文件通过本地 HTTP Range 流在 App 内播放，不再需要去文件管理器里翻目录。
 
 ### 2）YouTube / B 站等：本地 yt-dlp 引擎
-在 DSH Go 的 Ubuntu 本地环境启动引擎：
+在手机的本地 Ubuntu 环境（例如 DSH Go 的本地运行时）里，进入仓库目录启动引擎：
 
 ```bash
-bash /root/workspace/omniget-studio/server/start-engine.sh
+bash server/start-engine.sh
 ```
 
 App 顶栏会显示「● 引擎在线」；首页粘贴 YouTube 链接 → 显示标题/封面/清晰度（1080p/720p/仅音频…）→「用本地引擎下载」。
@@ -171,7 +171,7 @@ python3 server/ytdlp_server.py --port 8791
 | APK `apksigner verify` | v2 + v3 通过 |
 | APK `aapt dump badging` | 包名/SDK/图标/启动 Activity 正确 |
 
-> 本机（Android 10 华为）无法直接安装 APK 做真机验证；原生界面已尽量做静态与构建校验。真机若异常，App 会显示错误而非白屏，把截图/崩溃日志发我。
+> 开发机无法直接安装 APK 做真机验证；原生界面已尽量做静态与构建校验。真机若异常，App 会显示错误而非白屏，把截图/崩溃日志发我。
 
 ---
 
