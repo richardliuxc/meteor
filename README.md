@@ -64,6 +64,12 @@
   </tr>
 </table>
 
+## 下载
+
+- GitHub Releases：https://github.com/richardliuxc/meteor/releases/latest
+- 直链：https://github.com/richardliuxc/meteor/releases/latest/download/Meteor.apk
+- GitHub Pages：https://richardliuxc.github.io/meteor/
+
 ## 落地页
 
 > `index.html` —— 可直接打开；启用 GitHub Pages 后访问 `https://richardliuxc.github.io/meteor/`。
@@ -72,7 +78,7 @@
 
 | 文件 | 说明 |
 |---|---|
-| `dist/Meteor.apk` | Android 安装包（约 311 KB，minSdk 26 / target 34，debug 自签名） |
+| [Meteor.apk](https://github.com/richardliuxc/meteor/releases/latest/download/Meteor.apk) | Android 安装包（约 323 KB，minSdk 26 / target 34，debug 自签名） |
 | `dist/Meteor.html` | 网页版（浏览器打开即用，含本地引擎客户端） |
 | `server/` | 本地引擎：yt-dlp HTTP 服务 + 启动/停止脚本 |
 | `docs/app-icon.png` / `docs/brand-banner.png` | Logo 与品牌图 |
