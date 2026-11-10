@@ -44,7 +44,8 @@ else:
 ROOT = os.path.dirname(os.path.abspath(__file__))
 JOBS_FILE = os.path.join(ROOT, "jobs.json")
 FFMPEG_DIR = os.path.join(ROOT, "bin")
-DEFAULT_OUT = "/sdcard/Download/DSH-Go/Meteor"
+DEFAULT_OUT = "/sdcard/Download/Meteor"
+OLD_OUT = "/sdcard/Download/DSH-Go/Meteor"
 FALLBACK_OUT = os.path.join(ROOT, "downloads")
 VERSION = "1.0.0"
 
@@ -55,6 +56,28 @@ QUEUE_LOCK = threading.Condition()
 CACHE = {}
 CACHE_LOCK = threading.Lock()
 CONFIG = {"port": 8791, "out": DEFAULT_OUT, "token": ""}
+
+
+def migrate_old_out():
+    """把旧目录 DSH-Go/Meteor 里的文件迁移到 下载/Meteor。"""
+    try:
+        if not os.path.isdir(OLD_OUT):
+            return
+        os.makedirs(DEFAULT_OUT, exist_ok=True)
+        for name in os.listdir(OLD_OUT):
+            src = os.path.join(OLD_OUT, name)
+            if not os.path.isfile(src):
+                continue
+            dst = os.path.join(DEFAULT_OUT, name)
+            if os.path.exists(dst):
+                continue
+            shutil.move(src, dst)
+        try:
+            os.rmdir(OLD_OUT)
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def pick_out_dir():
@@ -138,7 +161,13 @@ def scan_existing_files():
             ext = os.path.splitext(name)[1].lower()
             if ext not in MEDIA_EXTS:
                 continue
+            if name.endswith(".compat720.mp4"):
+                continue
             if is_intermediate(name):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
                 continue  # yt-dlp 分离音视频的中间文件
             size = os.path.getsize(path)
             if size <= 0:
@@ -146,6 +175,29 @@ def scan_existing_files():
             jid = "file-" + hashlib.md5(path.encode("utf-8")).hexdigest()[:10]
             existing_paths = {(j.get("filepath") or "") for j in JOBS.values()}
             if jid in JOBS or path in existing_paths:
+                continue
+            height = 0
+            width = 0
+            if ext in (".mp4", ".webm", ".mkv", ".mov", ".m4v"):
+                try:
+                    ffprobe = os.path.join(FFMPEG_DIR, "ffprobe")
+                    if os.path.isfile(ffprobe):
+                        out = subprocess.run([ffprobe, "-v", "error", "-select_streams", "v:0",
+                                              "-show_entries", "stream=width,height",
+                                              "-of", "csv=p=0", path],
+                                             capture_output=True, text=True, timeout=10).stdout.strip()
+                        if out:
+                            parts = out.split(",")
+                            width = int(parts[0]) if parts and parts[0].isdigit() else 0
+                            height = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+                except Exception:
+                    height = 0
+            # 已有记录：补齐宽高
+            existing = next((j for j in JOBS.values() if (j.get("filepath") or "") == path), None)
+            if existing is not None:
+                if not existing.get("height"):
+                    existing["height"] = height
+                    existing["width"] = width
                 continue
             mtime = os.path.getmtime(path)
             base = os.path.splitext(name)[0]
@@ -169,6 +221,8 @@ def scan_existing_files():
                 "finishedAt": int(mtime * 1000),
                 "createdAt": int(mtime * 1000),
                 "duration": 0,
+                "width": width,
+                "height": height,
             }
             JOBS[jid] = job
     except Exception:
@@ -187,6 +241,8 @@ def load_jobs():
                 job["status"] = "canceled"
                 job["error"] = "engine restarted"
             fp = job.get("filepath") or ""
+            if fp and not os.path.isfile(fp):
+                continue
             if fp and fp in seen_paths:
                 continue
             if fp:
@@ -215,6 +271,8 @@ def job_public(job):
         "startedAt": job.get("startedAt") or 0,
         "finishedAt": job.get("finishedAt") or 0,
         "duration": job.get("duration") or 0,
+        "width": job.get("width") or 0,
+        "height": job.get("height") or 0,
         "path": job.get("filepath") or "",
         "uploader": job.get("uploader") or "",
         "extractor": job.get("extractor") or "",
@@ -351,6 +409,8 @@ def run_job(job):
             job["thumbnail"] = info.get("thumbnail") or ""
             job["uploader"] = info.get("uploader") or ""
             job["duration"] = info.get("duration") or 0
+            job["width"] = info.get("width") or 0
+            job["height"] = info.get("height") or 0
             job["uploader"] = info.get("uploader") or info.get("channel") or ""
             job["extractor"] = info.get("extractor_key") or info.get("extractor") or ""
             job["webpage"] = info.get("webpage_url") or job.get("url") or ""
@@ -714,6 +774,7 @@ def main():
     CONFIG["port"] = args.port
     CONFIG["out"] = args.out
     CONFIG["token"] = args.token
+    migrate_old_out()
     pick_out_dir()
     load_jobs()
     scan_existing_files()

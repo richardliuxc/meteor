@@ -5,12 +5,16 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.ClipData;
+import android.content.ContentValues;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.media.MediaScannerConnection;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -41,6 +45,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -120,6 +126,8 @@ public class MainActivity extends Activity {
         String title = "";
         String filename = "";
         String path = "";
+        int width = 0;
+        int height = 0;
         String source = "";
         String uploader = "";
         String extractor = "";
@@ -476,7 +484,7 @@ public class MainActivity extends Activity {
         fLp.topMargin = dp(12);
         folderCard.setLayoutParams(fLp);
         folderCard.addView(text("下载目录", 14, C_TEXT, true));
-        TextView path = text("直链：系统「下载」目录\n本地引擎：下载/DSH-Go/Meteor", 11, C_MUTED, false);
+        TextView path = text("直链：系统「下载」目录\n本地引擎：下载/Meteor（点击打开会再导出到系统下载）", 11, C_MUTED, false);
         path.setPadding(0, dp(6), 0, 0);
         path.setLineSpacing(0, 1.3f);
         folderCard.addView(path);
@@ -495,7 +503,7 @@ public class MainActivity extends Activity {
         aLp.topMargin = dp(12);
         aboutCard.setLayoutParams(aLp);
         aboutCard.addView(text("关于", 14, C_TEXT, true));
-        TextView about = text("Meteor 1.5.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
+        TextView about = text("Meteor 1.6.0 · 流星下载\n纯原生界面，无 WebView、无后端、无账号。\n数据只保存在本机。\n\n基于 OpenSelena/omniget 的界面与理念重制（GPL-3.0）。", 11, C_MUTED, false);
         about.setPadding(0, dp(6), 0, 0);
         about.setLineSpacing(0, 1.35f);
         aboutCard.addView(about);
@@ -838,6 +846,8 @@ public class MainActivity extends Activity {
             item.filename = j.optString("filename", item.filename);
             item.thumb = j.optString("thumbnail", item.thumb);
             item.path = j.optString("path", item.path);
+            item.width = j.optInt("width", item.width);
+            item.height = j.optInt("height", item.height);
             item.uploader = j.optString("uploader", item.uploader);
             item.extractor = j.optString("extractor", item.extractor);
             item.size = j.optLong("total", item.size);
@@ -1145,7 +1155,7 @@ public class MainActivity extends Activity {
         actions.addView(retry, btnLp());
 
         TextView open = smallButton("打开");
-        open.setOnClickListener(v -> playItem(item));
+        open.setOnClickListener(v -> openItem(item));
         actions.addView(open, btnLp());
 
         TextView share = smallButton("分享");
@@ -1248,25 +1258,283 @@ public class MainActivity extends Activity {
         refreshDownloads(true);
     }
 
+    private final Map<String, String> exportMap = new HashMap<>();
+    private AlertDialog preparingDialog;
+
+    private void loadExports() {
+        try {
+            JSONObject o = new JSONObject(getSharedPreferences(PREFS, MODE_PRIVATE)
+                    .getString("exports", "{}"));
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                exportMap.put(k, o.optString(k));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void saveExport(String id, String uri) {
+        exportMap.put(id, uri);
+        try {
+            JSONObject o = new JSONObject();
+            for (Map.Entry<String, String> e : exportMap.entrySet()) o.put(e.getKey(), e.getValue());
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("exports", o.toString()).apply();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String jobIdOf(Item item) {
+        return item.id.replaceFirst("^eng-", "");
+    }
+
+    /** 点击「打开」：一律用系统播放器；引擎文件先导出到系统「下载/Meteor」。 */
     private void openItem(Item item) {
-        if (item.engine) {
-            openDownloadsFolder();
+        if (!"done".equals(item.status)) {
+            toast("还没下载完成");
             return;
         }
+        if (!item.engine) {
+            openDirectWithSystem(item);
+            return;
+        }
+        String cached = exportMap.get(item.id);
+        if (cached != null && cached.startsWith("content://")) {
+            try {
+                if (getContentResolver().openInputStream(Uri.parse(cached)) != null) {
+                    launchSystemPlayer(Uri.parse(cached), FileBridge.mimeOf(item.filename));
+                    return;
+                }
+            } catch (Exception ignored) {
+                exportMap.remove(item.id);
+            }
+        }
+        if (!engineOnline) {
+            toast("本地引擎未连接：请先启动引擎再打开视频");
+            return;
+        }
+        if (item.height > 1080) {
+            showPreparing("视频分辨率较高（" + item.height + "p），正在准备 720p 兼容格式…");
+            ensureCompat(item, 0);
+        } else {
+            scanAndPlay(item, item.path, "");
+        }
+    }
+
+    /** 让系统媒体库扫描实际文件，然后交给系统播放器打开（不产生副本）。 */
+    private void scanAndPlay(final Item item, final String filePath, final String suffix) {
+        if (filePath == null || filePath.isEmpty()) {
+            fallbackExport(item);
+            return;
+        }
+        final boolean[] handled = {false};
+        final Runnable fallback = () -> {
+            if (handled[0]) return;
+            handled[0] = true;
+            fallbackExport(item);
+        };
+        ui.postDelayed(fallback, 5000);
+        try {
+            MediaScannerConnection.scanFile(this, new String[]{filePath}, null, (path, uri) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                if (uri != null) {
+                    dismissPreparing();
+                    saveExport(item.id, uri.toString());
+                    launchSystemPlayer(uri, FileBridge.mimeOf(filePath));
+                } else {
+                    fallbackExport(item);
+                }
+            });
+        } catch (Exception e) {
+            fallback.run();
+        }
+    }
+
+    private void fallbackExport(Item item) {
+        dismissPreparing();
+        showPreparing("正在保存到系统「下载」…");
+        startExport(item, engineBase + "/file?id=" + Uri.encode(jobIdOf(item)), "");
+    }
+
+    private void openDirectWithSystem(Item item) {
         try {
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             Uri uri = dm.getUriForDownloadedFile(item.nativeId);
             String mime = dm.getMimeTypeForDownloadedFile(item.nativeId);
             if (uri == null) {
-                openDownloadsFolder();
+                toast("文件不存在或已被删除");
                 return;
             }
-            Intent i = new Intent(Intent.ACTION_VIEW);
-            i.setDataAndType(uri, mime == null ? "*/*" : mime);
-            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
+            launchSystemPlayer(uri, mime);
         } catch (Exception e) {
-            openDownloadsFolder();
+            toast("打开失败: " + e.getMessage());
+        }
+    }
+
+    private void ensureCompat(final Item item, final int attempt) {
+        if (attempt > 240) {
+            dismissPreparing();
+            toast("转码超时，先尝试原画播放");
+            startExport(item, engineBase + "/file?id=" + Uri.encode(jobIdOf(item)), "");
+            return;
+        }
+        engineGet("/compat?id=" + Uri.encode(jobIdOf(item)), (ok, data, err) -> {
+            if (!ok || data == null) {
+                dismissPreparing();
+                startExport(item, engineBase + "/file?id=" + Uri.encode(jobIdOf(item)), "");
+                return;
+            }
+            String status = data.optString("status", "");
+            if ("done".equals(status)) {
+                String path = data.optString("path", "");
+                dismissPreparing();
+                if (!path.isEmpty()) {
+                    scanAndPlay(item, path, " 720p");
+                } else {
+                    scanAndPlay(item, item.path, "");
+                }
+            } else if ("running".equals(status)) {
+                showPreparing("正在转码为 720p 兼容格式…（大视频需要一会儿）");
+                ui.postDelayed(() -> ensureCompat(item, attempt + 1), 2500);
+            } else {
+                dismissPreparing();
+                scanAndPlay(item, item.path, "");
+            }
+        });
+    }
+
+    private void showPreparing(String message) {
+        if (preparingDialog == null) {
+            preparingDialog = new AlertDialog.Builder(this)
+                    .setTitle("Meteor")
+                    .setCancelable(true)
+                    .setNegativeButton("取消", (d, w) -> {
+                    })
+                    .create();
+        }
+        if (!preparingDialog.isShowing()) preparingDialog.show();
+        preparingDialog.setMessage(message);
+    }
+
+    private void dismissPreparing() {
+        try {
+            if (preparingDialog != null && preparingDialog.isShowing()) preparingDialog.dismiss();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String exportName(Item item, String mime, String suffix) {
+        String base = item.title == null || item.title.isEmpty() ? item.filename : item.title;
+        base = sanitize(base == null ? "meteor-video" : base);
+        base = base.replaceAll("\\.[A-Za-z0-9]{2,5}$", "");
+        String ext = "mp4";
+        if (mime != null) {
+            if (mime.contains("webm")) ext = "webm";
+            else if (mime.contains("matroska")) ext = "mkv";
+            else if (mime.contains("mpeg") && mime.contains("audio")) ext = "mp3";
+            else if (mime.contains("audio/mp4")) ext = "m4a";
+            else if (mime.contains("audio/")) ext = "m4a";
+        }
+        return base + suffix + "." + ext;
+    }
+
+    private void startExport(final Item item, final String httpUrl, final String suffix) {
+        showPreparing("正在保存到系统「下载/Meteor-play」…");
+        pool.execute(() -> {
+            HttpURLConnection conn = null;
+            Uri outUri = null;
+            String outMime = "video/mp4";
+            String error = null;
+            try {
+                conn = (HttpURLConnection) new URL(httpUrl).openConnection();
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(120000);
+                int code = conn.getResponseCode();
+                if (code >= 400) throw new Exception("HTTP " + code);
+                String mime = conn.getContentType();
+                if (mime != null && !mime.isEmpty() && !mime.contains("octet-stream")) outMime = mime;
+                long total = conn.getContentLengthLong();
+                String name = exportName(item, outMime, suffix);
+                InputStream is = conn.getInputStream();
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                    values.put(MediaStore.Downloads.MIME_TYPE, outMime);
+                    values.put(MediaStore.Downloads.RELATIVE_PATH,
+                            Environment.DIRECTORY_DOWNLOADS + "/Meteor-play");
+                    values.put(MediaStore.Downloads.IS_PENDING, 1);
+                    outUri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (outUri == null) throw new Exception("无法创建下载记录");
+                    OutputStream os = getContentResolver().openOutputStream(outUri);
+                    copyStream(is, os, total);
+                    values.clear();
+                    values.put(MediaStore.Downloads.IS_PENDING, 0);
+                    getContentResolver().update(outUri, values, null, null);
+                } else {
+                    java.io.File dir = new java.io.File(Environment.getExternalStoragePublicDirectory(
+                            Environment.DIRECTORY_DOWNLOADS), "Meteor-play");
+                    dir.mkdirs();
+                    java.io.File f = new java.io.File(dir, name);
+                    OutputStream os = new FileOutputStream(f);
+                    copyStream(is, os, total);
+                    outUri = FileBridge.uriFor(f.getAbsolutePath());
+                }
+                is.close();
+                if (outUri != null) saveExport(item.id, outUri.toString());
+            } catch (Exception e) {
+                error = String.valueOf(e.getMessage());
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+            final Uri uri = outUri;
+            final String mime = outMime;
+            final String err = error;
+            ui.post(() -> {
+                dismissPreparing();
+                if (uri != null) {
+                    toast("已保存到 下载/Meteor-play");
+                    launchSystemPlayer(uri, mime);
+                } else {
+                    toast("准备播放失败: " + err);
+                }
+            });
+        });
+    }
+
+    private void copyStream(InputStream is, OutputStream os, long total) throws Exception {
+        byte[] buf = new byte[65536];
+        int n;
+        long got = 0;
+        long last = 0;
+        while ((n = is.read(buf)) > 0) {
+            os.write(buf, 0, n);
+            got += n;
+            long now = System.currentTimeMillis();
+            if (now - last > 400) {
+                last = now;
+                final int pct = total > 0 ? (int) (got * 100 / total) : -1;
+                ui.post(() -> {
+                    if (preparingDialog != null && preparingDialog.isShowing()) {
+                        preparingDialog.setMessage(pct >= 0
+                                ? "正在保存到系统「下载/Meteor-play」… " + pct + "%"
+                                : "正在保存到系统「下载/Meteor-play」…");
+                    }
+                });
+            }
+        }
+        os.flush();
+        os.close();
+    }
+
+    private void launchSystemPlayer(Uri uri, String mime) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, mime == null || mime.isEmpty() ? "*/*" : mime);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            toast("没有可用的系统播放器");
         }
     }
 
@@ -1323,7 +1591,10 @@ public class MainActivity extends Activity {
             String text = (item.title.isEmpty() ? item.url : item.title);
             if (!item.url.isEmpty()) text += "\n" + item.url;
             if ("done".equals(item.status)) {
-                if (item.engine && item.path != null && !item.path.isEmpty()
+                if (item.engine && exportMap.containsKey(item.id)) {
+                    stream = Uri.parse(exportMap.get(item.id));
+                    mime = FileBridge.mimeOf(item.filename);
+                } else if (item.engine && item.path != null && !item.path.isEmpty()
                         && canReadFile(item.path)) {
                     stream = FileBridge.uriFor(item.path);
                     mime = FileBridge.mimeOf(item.path);
@@ -1399,6 +1670,20 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4003);
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            java.util.List<String> need = new ArrayList<>();
+            if (checkSelfPermission("android.permission.READ_MEDIA_VIDEO") != PackageManager.PERMISSION_GRANTED) {
+                need.add("android.permission.READ_MEDIA_VIDEO");
+            }
+            if (checkSelfPermission("android.permission.READ_MEDIA_AUDIO") != PackageManager.PERMISSION_GRANTED) {
+                need.add("android.permission.READ_MEDIA_AUDIO");
+            }
+            if (!need.isEmpty()) requestPermissions(need.toArray(new String[0]), 4004);
+        } else if (Build.VERSION.SDK_INT >= 29) {
+            if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, 4004);
             }
         }
     }
@@ -1583,6 +1868,7 @@ public class MainActivity extends Activity {
                 it.platform = o.optString("platform", "direct");
                 it.source = o.optString("source", "");
                 it.path = o.optString("path", "");
+                it.height = o.optInt("height", 0);
                 it.nativeId = o.optLong("nativeId", 0);
                 it.size = o.optLong("size", 0);
                 it.received = o.optLong("received", 0);
@@ -1609,6 +1895,7 @@ public class MainActivity extends Activity {
                 o.put("platform", it.platform);
                 o.put("source", it.source);
                 o.put("path", it.path);
+                o.put("height", it.height);
                 o.put("nativeId", it.nativeId);
                 o.put("size", it.size);
                 o.put("received", it.received);
